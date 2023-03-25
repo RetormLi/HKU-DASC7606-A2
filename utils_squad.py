@@ -207,8 +207,6 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
         query_tokens = tokenizer.tokenize(example.question_text)
 
-
-
         if len(query_tokens) > max_query_length:
             query_tokens = query_tokens[0:max_query_length]
 
@@ -216,16 +214,15 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         # orig_to_tok_index[i] indicates the index of the i-th token in the tokenized sequence.
         # For example, given the original sentence "In what R&B group was she the lead singer?" and the tokenized one "in what r & b group was she the lead singer ?",
         # we have tok_to_orig_index[4]=2 and orig_to_tok_index[3]=5
-        tok_to_orig_index = [] # tok_to_orig_index[i]: the index of the i-th subtoken in the original sequence
-        orig_to_tok_index = [] # orig_to_tok_index[i]: the index of the i-th token in the tokenized sequence
+        tok_to_orig_index = []  # tok_to_orig_index[i]: the index of the i-th subtoken in the original sequence
+        orig_to_tok_index = []  # orig_to_tok_index[i]: the index of the i-th token in the tokenized sequence
         all_doc_tokens = []
         for (i, token) in enumerate(example.doc_tokens):
-            orig_to_tok_index.append("Write Your Code Here")
+            orig_to_tok_index.append(len(all_doc_tokens))
             sub_tokens = tokenizer.tokenize(token)
             for sub_token in sub_tokens:
-                tok_to_orig_index.append("Write Your Code Here")
-                all_doc_tokens.append("Write Your Code Here")
-
+                tok_to_orig_index.append(i)
+                all_doc_tokens.append(sub_token)
 
         tok_start_position = None
         tok_end_position = None
@@ -233,9 +230,9 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             tok_start_position = -1
             tok_end_position = -1
         if is_training and not example.is_impossible:
-            tok_start_position = orig_to_tok_index["Write Your Code Here"]
+            tok_start_position = orig_to_tok_index[example.start_position]
             if example.end_position < len(example.doc_tokens) - 1:
-                tok_end_position = orig_to_tok_index["Write Your Code Here"] - 1
+                tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
             else:
                 tok_end_position = len(all_doc_tokens) - 1
             (tok_start_position, tok_end_position) = _improve_answer_span(
@@ -480,6 +477,7 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
 RawResult = collections.namedtuple("RawResult",
                                    ["unique_id", "start_logits", "end_logits"])
 
+
 def write_predictions(all_examples, all_features, all_results, n_best_size,
                       max_answer_length, do_lower_case, output_prediction_file,
                       output_nbest_file, output_null_log_odds_file, verbose_logging,
@@ -612,12 +610,12 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
                         text="",
                         start_logit=null_start_logit,
                         end_logit=null_end_logit))
-                
+
             # In very rare edge cases we could only have single null prediction.
             # So we just create a nonce prediction in this case to avoid failure.
-            if len(nbest)==1:
+            if len(nbest) == 1:
                 nbest.insert(0,
-                    _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+                             _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
 
         # In very rare edge cases we could have no valid predictions. So we
         # just create a nonce prediction in this case to avoid failure.
@@ -676,16 +674,16 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
 # For XLNet (and XLM which uses the same head)
 RawResultExtended = collections.namedtuple("RawResultExtended",
-    ["unique_id", "start_top_log_probs", "start_top_index",
-     "end_top_log_probs", "end_top_index", "cls_logits"])
+                                           ["unique_id", "start_top_log_probs", "start_top_index",
+                                            "end_top_log_probs", "end_top_index", "cls_logits"])
 
 
 def write_predictions_extended(all_examples, all_features, all_results, n_best_size,
-                                max_answer_length, output_prediction_file,
-                                output_nbest_file,
-                                output_null_log_odds_file, orig_data_file,
-                                start_n_top, end_n_top, version_2_with_negative,
-                                tokenizer, verbose_logging):
+                               max_answer_length, output_prediction_file,
+                               output_nbest_file,
+                               output_null_log_odds_file, orig_data_file,
+                               start_n_top, end_n_top, version_2_with_negative,
+                               tokenizer, verbose_logging):
     """ XLNet write prediction logic (more complex than Bert's).
         Write final predictions to the json file and log-odds of null if needed.
         Requires utils_squad_evaluate.py
@@ -693,7 +691,7 @@ def write_predictions_extended(all_examples, all_features, all_results, n_best_s
     _PrelimPrediction = collections.namedtuple(  # pylint: disable=invalid-name
         "PrelimPrediction",
         ["feature_index", "start_index", "end_index",
-        "start_log_prob", "end_log_prob"])
+         "start_log_prob", "end_log_prob"])
 
     _NbestPrediction = collections.namedtuple(  # pylint: disable=invalid-name
         "NbestPrediction", ["text", "start_log_prob", "end_log_prob"])
@@ -815,7 +813,7 @@ def write_predictions_extended(all_examples, all_features, all_results, n_best_s
         if not nbest:
             nbest.append(
                 _NbestPrediction(text="", start_log_prob=-1e6,
-                end_log_prob=-1e6))
+                                 end_log_prob=-1e6))
 
         total_scores = []
         best_non_null_entry = None
