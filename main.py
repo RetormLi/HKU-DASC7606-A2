@@ -394,6 +394,8 @@ def main():
     #                          "See details at https://nvidia.github.io/apex/amp.html")
     parser.add_argument('--server_ip', type=str, default='', help="Can be used for distant debugging.")
     parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
+    parser.add_argument("--log_path", default="./log.txt", type=str)
+
     args = parser.parse_args()
 
     if os.path.exists(args.output_dir) and os.listdir(
@@ -424,6 +426,8 @@ def main():
     # Setup logging
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                         datefmt='%m/%d/%Y %H:%M:%S',
+                        filename=args.log_path,
+                        filemode='a',
                         level=logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
     logger.warning("Process rank: %s, device: %s, n_gpu: %s, distributed training: %s",
                    args.local_rank, device, args.n_gpu, bool(args.local_rank != -1))
@@ -502,6 +506,7 @@ def main():
             results.update(result)
 
     logger.info("Results: {}".format(results))
+    print("Results: {}".format(results))
 
     return results
 
