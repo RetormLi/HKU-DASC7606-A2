@@ -313,7 +313,7 @@ class BertSelfAttention(nn.Module):
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (
-        self.all_head_size,)  # new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+            self.all_head_size,)  # new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
         outputs = (context_layer, attention_probs) if self.output_attentions else (context_layer,)
@@ -1168,6 +1168,42 @@ class BertForTokenClassification(BertPreTrainedModel):
         return outputs  # (loss), scores, (hidden_states), (attentions)
 
 
+class LabelSmoothSoftmaxCEV1(nn.Module):
+    '''
+    This is the autograd version, you can also try the LabelSmoothSoftmaxCEV2 that uses derived gradients
+    '''
+
+    def __init__(self, lb_smooth=0.1, reduction='mean', ignore_index=-100):
+        super(LabelSmoothSoftmaxCEV1, self).__init__()
+        self.lb_smooth = lb_smooth
+        self.reduction = reduction
+        self.lb_ignore = ignore_index
+        self.log_softmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, logits, label):
+        # overcome ignored label
+        logits = logits.float()  # use fp32 to avoid nan
+        with torch.no_grad():
+            num_classes = logits.size(1)
+            label = label.clone().detach()
+            ignore = label.eq(self.lb_ignore)
+            n_valid = ignore.eq(0).sum()
+            label[ignore] = 0
+            lb_pos, lb_neg = 1. - self.lb_smooth, self.lb_smooth / num_classes
+            lb_one_hot = torch.empty_like(logits).fill_(
+                lb_neg).scatter_(1, label.unsqueeze(1), lb_pos).detach()
+
+        logs = self.log_softmax(logits)
+        loss = -torch.sum(logs * lb_one_hot, dim=1)
+        loss[ignore] = 0
+        if self.reduction == 'mean':
+            loss = loss.sum() / n_valid
+        if self.reduction == 'sum':
+            loss = loss.sum()
+
+        return loss
+
+
 @add_start_docstrings("""Bert Model with a span classification head on top for extractive question-answering tasks like SQuAD (a linear layers on top of
     the hidden-states output to compute `span start logits` and `span end logits`). """,
                       BERT_START_DOCSTRING, BERT_INPUTS_DOCSTRING)
@@ -1241,7 +1277,10 @@ class BertForQuestionAnswering(BertPreTrainedModel):
             start_positions.clamp_(0, ignored_index)
             end_positions.clamp_(0, ignored_index)
 
-            loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
+            # loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
+            # start_loss = loss_fct(start_logits, start_positions)
+            # end_loss = loss_fct(end_logits, end_positions)
+            loss_fct = LabelSmoothSoftmaxCEV1(ignore_index=ignored_index)
             start_loss = loss_fct(start_logits, start_positions)
             end_loss = loss_fct(end_logits, end_positions)
             total_loss = (start_loss + end_loss) / 2
